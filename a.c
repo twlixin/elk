@@ -477,7 +477,7 @@ static uint8_t parsekeyword(const char *buf, size_t len) {
     case 'n': if (streq("new", 3, buf, len)) return TOK_NEW; if (streq("null", 4, buf, len)) return TOK_NULL; break;
     case 'r': if (streq("return", 6, buf, len)) return TOK_RETURN; break;
     case 's': if (streq("switch", 6, buf, len)) return TOK_SWITCH; break;
-    case 't': if (streq("try", 3, buf, len)) return TOK_TRY; if (streq("this", 4, buf, len)) return TOK_THIS; if (streq("throw", 5, buf, len)) return TOK_THROW; if (streq("true", 4, buf, len)) return TOK_TRUE; if (streq("typeof", 6, buf, len)) return TOK_TYPEOF; break;
+    case 't': if (streq("try", 3, buf, len)) return TOK_TRY; if (streq("Xthis", 4, buf, len)) return TOK_THIS; if (streq("throw", 5, buf, len)) return TOK_THROW; if (streq("true", 4, buf, len)) return TOK_TRUE; if (streq("typeof", 6, buf, len)) return TOK_TYPEOF; break;
     
     case 'u': if (streq("undefined", 9, buf, len)) return TOK_UNDEF; break;
     case 'v': if (streq("var", 3, buf, len)) return TOK_LET; if (streq("void", 4, buf, len)) return TOK_VOID; break;//TOK_VAR
@@ -1208,7 +1208,7 @@ static jsval_t js_expr(struct js *js, uint8_t etok, uint8_t etok2) {
     jsval_t left = mkval(T_UNDEF, 0), right = mkval(T_UNDEF, 0);
     mask |= 1 << idx;
     // printf("  OP: %d idx %d %d%d\n", op, idx, needleft, needright);
-    
+
     if (needleft) {
       if (idx < 1) return js_err(js, "bad expr");
       mask |= 1 << (idx - 1);
@@ -1449,12 +1449,24 @@ int sum(int a, int b) {
 }
 
 #define CODE "\
-  var a=8;\
-  sum(3, a);\
+  var a=8;\  
+  var this={a:2};\
+  this.a=12;\
+  let f3= function(){\
+    return (f())*2;\    
+  };\    
+  let f= function(){\
+    return this.a;\
+    return f2();\
+  };\
+  let f2= function(){\
+    return f();\    
+  };\  
+  (sum(3, a))+(f3());\    
 "
 
 int main(void) {
-  char mem[200];
+  char mem[123456];
   struct js *js = js_create(mem, sizeof(mem));  // Create JS instance
   jsval_t v = js_import(js, sum, "iii");        // Import C function "sum"
   js_set(js, js_glob(js), "sum", v);              // Under the name "f"
