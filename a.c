@@ -30,7 +30,6 @@ jsval_t js_import(struct js *, uintptr_t, const char *);   // Import native func
 void js_set(struct js *, jsval_t, const char *, jsval_t);  // Set obj attribute
 int js_usage(struct js *);                                 // Return mem usage
 
-
 typedef uint32_t jsoff_t;
 
 struct js {
@@ -481,7 +480,7 @@ static uint8_t parsekeyword(const char *buf, size_t len) {
     case 't': if (streq("try", 3, buf, len)) return TOK_TRY; if (streq("this", 4, buf, len)) return TOK_THIS; if (streq("throw", 5, buf, len)) return TOK_THROW; if (streq("true", 4, buf, len)) return TOK_TRUE; if (streq("typeof", 6, buf, len)) return TOK_TYPEOF; break;
     
     case 'u': if (streq("undefined", 9, buf, len)) return TOK_UNDEF; break;
-    case 'v': if (streq("var", 3, buf, len)) return TOK_VAR; if (streq("void", 4, buf, len)) return TOK_VOID; break;
+    case 'v': if (streq("var", 3, buf, len)) return TOK_LET; if (streq("void", 4, buf, len)) return TOK_VOID; break;//TOK_VAR
     case 'w': if (streq("while", 5, buf, len)) return TOK_WHILE; if (streq("with", 4, buf, len)) return TOK_WITH; break;
     case 'y': if (streq("yield", 5, buf, len)) return TOK_YIELD; break;
   }
@@ -1176,10 +1175,12 @@ static jsval_t js_expr(struct js *js, uint8_t etok, uint8_t etok2) {
         case TOK_NUMBER:  stk[n++] = js->tval; break;
         case TOK_LBRACE:  stk[n++] = js_obj_literal(js); break;
         case TOK_STRING:  stk[n++] = js_str_literal(js); break;
+
         case TOK_FUNC:    stk[n++] = js_func_literal(js); break;
         case TOK_NULL:    stk[n++] = mkval(T_NULL, 0); break;
         case TOK_UNDEF:   stk[n++] = mkval(T_UNDEF, 0); break;
         case TOK_TRUE:    stk[n++] = mkval(T_BOOL, 1); break;
+
         case TOK_FALSE:   stk[n++] = mkval(T_BOOL, 0); break;
         case TOK_LPAREN:  stk[n++] = js_expr(js, TOK_RPAREN, TOK_EOF); break;
         default:          return js_err(js, "unexpected token '%.*s'", (int) js->tlen, js->code + js->toff);
@@ -1203,9 +1204,11 @@ static jsval_t js_expr(struct js *js, uint8_t etok, uint8_t etok2) {
     bool unary = is_unary(op), rassoc = is_right_assoc(op);
     bool needleft = unary && rassoc ? false : true;
     bool needright = unary && !rassoc ? false : true;
+
     jsval_t left = mkval(T_UNDEF, 0), right = mkval(T_UNDEF, 0);
     mask |= 1 << idx;
     // printf("  OP: %d idx %d %d%d\n", op, idx, needleft, needright);
+    
     if (needleft) {
       if (idx < 1) return js_err(js, "bad expr");
       mask |= 1 << (idx - 1);
@@ -1445,13 +1448,18 @@ int sum(int a, int b) {
   return a + b;
 }
 
+#define CODE "\
+  var a=8;\
+  sum(3, a);\
+"
+
 int main(void) {
   char mem[200];
   struct js *js = js_create(mem, sizeof(mem));  // Create JS instance
   jsval_t v = js_import(js, sum, "iii");        // Import C function "sum"
   js_set(js, js_glob(js), "sum", v);              // Under the name "f"
 
-  jsval_t result = js_eval(js, "sum(3, 4);", ~0); // Call "f"
+  jsval_t result = js_eval(js, CODE, ~0); // Call "f"
   printf("result: %s\n", js_str(js, result));   // result: 7
   // printf("hello\n");
   return 0;
