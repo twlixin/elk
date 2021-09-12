@@ -1444,8 +1444,94 @@ void js_dump(struct js *js) {
 }
 #endif
 
+// signature: specifies C function signature that tells how JS engine should marshal JS arguments to the C function. First letter specifies return value type, following letters - parameters:
+// b: a C bool type
+// d: a C double type
+// i: a C integer type: char, short, int, long
+// s: a C string, a 0-terminated char *
+// j: a jsval_t
+// m: a current struct js *. In JS, pass null
+// p: any C pointer
+// v: valid only for the return value, means void
+
+// A function must have maximum 6 parameters
+// C double parameters could be only 1st or 2nd. For example, function void foo(double x, double y, struct bar *) could be imported, but void foo(struct bar *, double x, double y) could not
+// C++ functions must be declared as extern "C"
+// Functions with float params cannot be imported. Write wrappers with double
+
+// int sum(int) -> js_import(js, (uintptr_t) sum, "ii")
+// double sub(double a, double b) -> js_import(js, (uintptr_t) sub, "ddd")
+// int rand(void) -> js_import(js, (uintptr_t) rand, "i")
+// unsigned long strlen(char *s) -> js_import(js, (uintptr_t) strlen, "is")
+// char *js_str(struct js *, js_val_t) -> js_import(js, (uintptr_t) js_str, "smj")
+// In some cases, C APIs use callback functions. For example, a timer C API could specify a time interval, a C function to call, and a function parameter. It is possible to marshal JS function as a C callback - in other words, it is possible to pass JS functions as C callbacks.
+
+// A C callback function should take between 1 and 6 arguments. One of these arguments must be a void * pointer, that is passed to the C callback by the imported function. We call this void * parameter a "userdata" parameter.
+
+// The C callback specification is enclosed into the square brackets [...]. In addition to the signature letters above, a new letter u is available that specifies userdata parameter. In JS, pass null for u param. Here is a complete example:
+
+// #include <stdio.h>
+// #include "elk.h"
+
+// // C function that invokes a callback and returns the result of invocation
+// int f(int (*fn)(int a, int b, void *userdata), void *userdata) {
+//   return fn(1, 2, userdata);
+// }
+
+// int main(void) {
+//   char mem[500];
+//   struct js *js = js_create(mem, sizeof(mem));
+//   js_set(js, js_glob(js), "f", js_import(js, f, "i[iiiu]u"));
+//   jsval_t v = js_eval(js, "f(function(a,b,c){return a + b;}, 0);", ~0);
+//   printf("result: %s\n", js_str(js, v));  // result: 3
+//   return 0;
+// }
+
+void test_read_file(){
+  FILE *f = fopen("1.js", "rb");
+  fseek(f, 0, SEEK_END);
+  long fsize = ftell(f);
+  fseek(f, 0, SEEK_SET);  /* same as rewind(f); */
+
+  char *string = malloc(fsize + 1);
+  fread(string, 1, fsize, f);
+  fclose(f);
+  string[fsize] = 0;
+
+  printf("%s\n", string);
+
+  // FILE *in=fopen("name_of_file.txt","r");
+	// char c;
+	// while((c=fgetc(in))!=EOF)
+	// 	putchar(c);
+	// fclose(in);
+}
+//////////////////////////////
+struct js *g_js;
+
 int sum(int a, int b) {
   return a + b;
+}
+
+jsval_t read_file( jsval_t val){
+  //printf("test: %sV\n", js_str( g_js, val));  
+  char *file_name= js_str( g_js, val);//"1.js";//
+  file_name[ strlen(file_name)-1]= 0; //remove first "
+  FILE *f = fopen( file_name + 1, "rb");
+  
+  fseek(f, 0, SEEK_END);
+  long fsize = ftell(f);
+  fseek(f, 0, SEEK_SET);  // same as rewind(f); 
+
+  char *string = malloc(fsize + 1);
+  fread(string, 1, fsize, f);
+  fclose(f);
+
+  string[fsize] = 0; //printf("%s\n", string);
+  jsval_t r= mkstr( g_js, string, strlen( string));
+  free( string);
+
+  return r;
 }
 
 #define CODE "\
@@ -1456,23 +1542,33 @@ int sum(int a, int b) {
     return (f())*2;\    
   };\    
   let f= function(){\
+    let f3= function(){\
+      return 1;\    
+    };\    
+    return f3();\
     return this.a;\
     return f2();\
   };\
   let f2= function(){\
     return f();\    
   };\  
-  (sum(3, a))+(f3());\    
+  (sum(3, a))+(f3());\
+  read_file('1.js');\
 "
 
 int main(void) {
+  //test_read_file();
   char mem[123456];
-  struct js *js = js_create(mem, sizeof(mem));  // Create JS instance
-  jsval_t v = js_import(js, sum, "iii");        // Import C function "sum"
-  js_set(js, js_glob(js), "sum", v);              // Under the name "f"
+  g_js = js_create(mem, sizeof(mem));    
 
-  jsval_t result = js_eval(js, CODE, ~0); // Call "f"
-  printf("result: %s\n", js_str(js, result));   // result: 7
+  jsval_t v = js_import( g_js, sum, "iii");
+  js_set( g_js, js_glob( g_js), "sum", v); 
+
+  jsval_t v2 = js_import( g_js, (uintptr_t) read_file, "jj");
+  js_set( g_js, js_glob( g_js), "read_file", v2);
+  
+  jsval_t result = js_eval( g_js, CODE, ~0); 
+  printf("result: %s\n", js_str( g_js, result));   
   // printf("hello\n");
   return 0;
-}
+}//https://bestofcpp.com/repo/cesanta-elk-cpp-miscellaneous
