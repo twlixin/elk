@@ -1487,25 +1487,6 @@ void js_dump(struct js *js) {
 //   return 0;
 // }
 
-void test_read_file(){
-  FILE *f = fopen("1.js", "rb");
-  fseek(f, 0, SEEK_END);
-  long fsize = ftell(f);
-  fseek(f, 0, SEEK_SET);  /* same as rewind(f); */
-
-  char *string = malloc(fsize + 1);
-  fread(string, 1, fsize, f);
-  fclose(f);
-  string[fsize] = 0;
-
-  printf("%s\n", string);
-
-  // FILE *in=fopen("name_of_file.txt","r");
-	// char c;
-	// while((c=fgetc(in))!=EOF)
-	// 	putchar(c);
-	// fclose(in);
-}
 //////////////////////////////
 struct js *g_js;
 
@@ -1513,12 +1494,18 @@ int sum(int a, int b) {
   return a + b;
 }
 
+jsval_t eval( jsval_t val){
+  char *s= js_str( g_js, val);
+  s[ strlen(s)-1]= 0; 
+  return js_eval( g_js, s+1, ~0); 
+}//todo, check to release mem
+
 jsval_t read_file( jsval_t val){
   //printf("test: %sV\n", js_str( g_js, val));  
-  char *file_name= js_str( g_js, val);//"1.js";//
-  file_name[ strlen(file_name)-1]= 0; //remove first "
-  FILE *f = fopen( file_name + 1, "rb");
-  
+  char *s= js_str( g_js, val);//"1.js";//
+  s[ strlen(s)-1]= 0; //remove first "
+  FILE *f = fopen( s + 1, "rb");
+
   fseek(f, 0, SEEK_END);
   long fsize = ftell(f);
   fseek(f, 0, SEEK_SET);  // same as rewind(f); 
@@ -1552,21 +1539,18 @@ jsval_t read_file( jsval_t val){
   let f2= function(){\
     return f();\    
   };\  
-  (sum(3, a))+(f3());\
-  read_file('1.js');\
+  (sum(3, a))+(f3());\    
+  eval( read_file('1.js'));\
 "
 
 int main(void) {
   //test_read_file();
   char mem[123456];
-  g_js = js_create(mem, sizeof(mem));    
+  g_js = js_create(mem, sizeof(mem));      
+  js_set( g_js, js_glob( g_js), "sum", js_import( g_js, sum, "iii"));   
+  js_set( g_js, js_glob( g_js), "read_file", js_import( g_js, (uintptr_t) read_file, "jj"));
+  js_set( g_js, js_glob( g_js), "eval", js_import( g_js, (uintptr_t) eval, "jj"));
 
-  jsval_t v = js_import( g_js, sum, "iii");
-  js_set( g_js, js_glob( g_js), "sum", v); 
-
-  jsval_t v2 = js_import( g_js, (uintptr_t) read_file, "jj");
-  js_set( g_js, js_glob( g_js), "read_file", v2);
-  
   jsval_t result = js_eval( g_js, CODE, ~0); 
   printf("result: %s\n", js_str( g_js, result));   
   // printf("hello\n");
