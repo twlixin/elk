@@ -946,10 +946,10 @@ static jsval_t call_js(struct js *js, const char *fn, int fnlen) {
 
   // printf("  %d. calling, %u [%.*s]\n", js->flags, n, (int) n, &fn[fnpos]);
   js->flags = F_CALL;  // Mark we're in the function call
-  jsval_t res = js_eval_nogc(js, &fn[fnpos], n);         // Call function, no GC
+  jsval_t res = js_eval_nogc(js, &fn[fnpos], n);  // Call function, no GC
   if (!(js->flags & F_RETURN)) res = mkval(T_UNDEF, 0);  // Is return called?
 
-  delscope(js);                                          // Delete call scope
+  delscope(js);                     // Delete call scope
   return res;
 }
 
