@@ -1494,9 +1494,16 @@ int sum(int a, int b) {
   return a + b;
 }
 
+jsval_t print( jsval_t val){
+  printf("print: %s\n", js_str( g_js, val));
+  return val; 
+}
+
 jsval_t eval( jsval_t val){
   char *s= js_str( g_js, val);
+  //printf("test: %s\n", s);
   s[ strlen(s)-1]= 0; 
+  printf("test: %s\n", s+1);
   return js_eval( g_js, s+1, ~0); 
 }//todo, check to release mem
 
@@ -1516,14 +1523,14 @@ jsval_t read_file( jsval_t val){
 
   string[fsize] = 0; //printf("%s\n", string);
   jsval_t r= mkstr( g_js, string, strlen( string));
-  free( string);
+  //free( string);
 
   return r;
 }
 
-#define CODE "\
+#define CODE2 "\
   var a=8;\  
-  var this={a:2};\
+  var this={a:2,b:function(a){return a;}};\
   this.a=12;\
   let f3= function(){\
     return (f())*2;\    
@@ -1539,20 +1546,53 @@ jsval_t read_file( jsval_t val){
   let f2= function(){\
     return f();\    
   };\  
-  (sum(3, a))+(f3());\    
-  eval( read_file('1.js'));\
+  //print('v000000000028');\  
+  //(sum(3, a))+(f3());\    
+  //eval( read_file('1.js'));\
+  ;\
+  //this;\
+  //this.b(28);\
+  ;\
+"
+
+#define CODE "\
+  var this={\
+    a:2,\
+    fn: function(a2){return a2;},\
+    fn2: function(a){return this.fn(a);},\
+    fn3: function(a){\
+      if(a<=1) return 1;\
+      return (this.fn3(a-1))*(this.fn3(a-2));\
+      /*return (this.fn2(a-1))+(this.fn2(a-2));*/\
+    },\        
+    fn4: function(a){\
+      if(a<=1) return 1;\
+      return (this.fn5(a-1))*(this.fn5(a-2));\      
+    },\    
+    fn5: function(a){\
+      if(a<=1) return 1;\
+      return (this.fn4(a-1))*(this.fn4(a-2));\      
+    },\    
+  };\
+  let fn= function(a){\
+    if(a<=1) return 1;\
+    return fn(a-1)*fn(a-2);\  
+  };\  
+  /*print(fn(5));*/\
+  print(this.fn5(5));\  
 "
 
 int main(void) {
   //test_read_file();
-  char mem[123456];
+  char mem[1234567];
   g_js = js_create(mem, sizeof(mem));      
   js_set( g_js, js_glob( g_js), "sum", js_import( g_js, sum, "iii"));   
   js_set( g_js, js_glob( g_js), "read_file", js_import( g_js, (uintptr_t) read_file, "jj"));
-  js_set( g_js, js_glob( g_js), "eval", js_import( g_js, (uintptr_t) eval, "jj"));
+  js_set( g_js, js_glob( g_js), "eval", js_import( g_js, (uintptr_t) eval, "jj"));  
+  js_set( g_js, js_glob( g_js), "print", js_import( g_js, (uintptr_t) print, "jj"));
 
   jsval_t result = js_eval( g_js, CODE, ~0); 
-  printf("result: %s\n", js_str( g_js, result));   
+  printf("result----: %s\n", js_str( g_js, result));   
   // printf("hello\n");
   return 0;
 }//https://bestofcpp.com/repo/cesanta-elk-cpp-miscellaneous
